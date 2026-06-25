@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Household Book</title>
+<meta name="description" content="クレジットカードと現金の支出を記録し、視覚化する家計簿アプリ">
+<meta name="theme-color" content="#FFF6DD">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Mochiy+Pop+One&family=Noto+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<div class="scroll-area">
+  <header class="app-header">
+    <div class="header-inner">
+      <span class="brand-stamp" aria-hidden="true">
+        <img src="icons/header-icon-square@3x.png" alt="">
+      </span>
+      <h1 class="brand-title">Household Book</h1>
+    </div>
+    <div class="header-month-nav" id="header-month-nav">
+      <div class="header-month-nav-inner">
+        <button type="button" id="header-prev-month" aria-label="前の月">‹</button>
+        <span class="header-month-label" id="header-month-label"></span>
+        <button type="button" id="header-next-month" aria-label="次の月">›</button>
+      </div>
+    </div>
+  </header>
+
+  <main id="view-root" class="view-root"></main>
+</div>
+
+<!-- 記録入力モーダル -->
+<dialog id="entry-dialog" class="entry-dialog">
+  <form id="entry-form" class="entry-form">
+    <h2 id="entry-dialog-title" class="entry-dialog-title">支出を記録</h2>
+
+    <div class="seg-control" role="radiogroup" aria-label="支払い方法">
+      <button type="button" class="seg-btn seg-card is-active" data-type="card" role="radio" aria-checked="true">Credit</button>
+      <button type="button" class="seg-btn seg-cash" data-type="cash" role="radio" aria-checked="false">Cash</button>
+    </div>
+    <input type="hidden" id="f-type" value="card">
+
+    <label class="field">
+      <span class="field-label">日付</span>
+      <input type="date" id="f-date" required>
+    </label>
+
+    <label class="field">
+      <span class="field-label">金額</span>
+      <input type="number" id="f-amount" inputmode="numeric" min="0" step="1" placeholder="0" required>
+    </label>
+
+    <label class="field">
+      <span class="field-label">カテゴリ</span>
+      <select id="f-category" required></select>
+    </label>
+
+    <label class="field">
+      <span class="field-label">種別（任意）</span>
+      <div class="combo" id="f-subtype-combo">
+        <input type="text" id="f-subtype" placeholder="例：歯科、ガソリン代" autocomplete="off">
+        <ul class="combo-list" id="f-subtype-list" role="listbox" hidden></ul>
+      </div>
+    </label>
+
+    <label class="field">
+      <span class="field-label">支払い先（任意）</span>
+      <div class="combo" id="f-payee-combo">
+        <input type="text" id="f-payee" placeholder="例：イオン、〇〇内科クリニック" autocomplete="off">
+        <ul class="combo-list" id="f-payee-list" role="listbox" hidden></ul>
+      </div>
+    </label>
+
+    <label class="field" id="f-cardname-field">
+      <span class="field-label">カード名</span>
+      <select id="f-cardname"></select>
+    </label>
+
+    <label class="field">
+      <span class="field-label">メモ（任意）</span>
+      <input type="text" id="f-memo" placeholder="例：スーパーでの買い物">
+    </label>
+
+    <div class="entry-dialog-actions">
+      <button type="button" id="entry-delete" class="btn btn-ghost-danger" hidden>削除</button>
+      <button type="button" id="entry-cancel" class="btn btn-ghost">キャンセル</button>
+      <button type="submit" class="btn btn-primary">保存</button>
+    </div>
+  </form>
+</dialog>
+
+<button id="fab-add" class="fab" aria-label="支出を記録する">
+  <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path d="M12 4v16M4 12h16" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+</button>
+
+<nav class="tab-bar" aria-label="画面切り替え">
+  <button class="tab-btn is-active" data-view="ledger">
+    <span class="tab-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+        <rect x="4" y="3.5" width="16" height="17" rx="2.2" fill="none" stroke="currentColor" stroke-width="1.6"/>
+        <path d="M8 8.2h8M8 12h8M8 15.8h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+      </svg>
+    </span>
+    <span class="tab-label">記録</span>
+  </button>
+  <button class="tab-btn" data-view="calendar">
+    <span class="tab-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+        <rect x="3.5" y="5" width="17" height="15" rx="2.2" fill="none" stroke="currentColor" stroke-width="1.6"/>
+        <path d="M3.5 9.2h17" stroke="currentColor" stroke-width="1.6"/>
+        <path d="M7.5 3.4v3.4M16.5 3.4v3.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+        <circle cx="8" cy="13" r="1.1" fill="currentColor"/>
+        <circle cx="12" cy="13" r="1.1" fill="currentColor"/>
+        <circle cx="16" cy="13" r="1.1" fill="currentColor"/>
+        <circle cx="8" cy="16.6" r="1.1" fill="currentColor"/>
+        <circle cx="12" cy="16.6" r="1.1" fill="currentColor"/>
+      </svg>
+    </span>
+    <span class="tab-label">カレンダー</span>
+  </button>
+  <button class="tab-btn" data-view="summary">
+    <span class="tab-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+        <circle cx="12" cy="12" r="8.2" fill="none" stroke="currentColor" stroke-width="1.6"/>
+        <path d="M12 4.3V12l6.2 4.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </span>
+    <span class="tab-label">集計</span>
+  </button>
+  <button class="tab-btn" data-view="manage">
+    <span class="tab-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+        <circle cx="12" cy="12" r="2.6" fill="none" stroke="currentColor" stroke-width="1.6"/>
+        <path d="M12 3.6v2.5M12 17.9v2.5M5.5 7.2l2.1 1.3M16.4 15.5l2.1 1.3M3.6 12h2.5M17.9 12h2.5M5.5 16.8l2.1-1.3M16.4 8.5l2.1-1.3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+      </svg>
+    </span>
+    <span class="tab-label">管理</span>
+  </button>
+</nav>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
