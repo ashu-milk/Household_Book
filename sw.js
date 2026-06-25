@@ -14,7 +14,7 @@
 //
 // 【重要】コードを更新するたびに、下の CACHE_VERSION の数字を1つ増やしてください。
 // このファイルのバイト内容が変わることで、ブラウザが更新を検知できます。
-const CACHE_VERSION = 25;
+const CACHE_VERSION = 26;
 const CACHE_NAME = `kakeibo-cache-v${CACHE_VERSION}`;
 
 const APP_SHELL = [
