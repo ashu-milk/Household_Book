@@ -1047,6 +1047,184 @@ function setupCombo(comboId, inputId, listId, getOptions) {
 setupCombo('f-subtype-combo', 'f-subtype', 'f-subtype-list', () => state.subtypes.map(s => s.name));
 setupCombo('f-payee-combo', 'f-payee', 'f-payee-list', () => state.payees.map(p => p.name));
 
+/* ===================== 電卓モーダル ===================== */
+const calculatorDialog = document.getElementById('calculator-dialog');
+const calcDisplay = document.getElementById('calc-display');
+const calcGrid = document.querySelector('.calc-grid');
+const openCalculatorBtn = document.getElementById('open-calculator');
+const calcCancelBtn = document.getElementById('calc-cancel');
+const calcApplyBtn = document.getElementById('calc-apply');
+
+let calc = {
+  current: '0',   // 表示中の数値（文字列）
+  previous: null, // 演算前の値
+  operator: null, // '+', '−', '×', '÷'
+  justEvaluated: false
+};
+
+function calcFormatDisplay(numStr) {
+  // 表示用に3桁区切りを入れる（小数部はそのまま）
+  if (numStr === '' || numStr === '-') return numStr || '0';
+  const [intPart, decPart] = numStr.split('.');
+  const negative = intPart.startsWith('-');
+  const digits = negative ? intPart.slice(1) : intPart;
+  const withCommas = digits.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  let result = (negative ? '-' : '') + withCommas;
+  if (decPart !== undefined) result += '.' + decPart;
+  return result;
+}
+
+function calcRender() {
+  calcDisplay.textContent = calcFormatDisplay(calc.current);
+  document.querySelectorAll('.calc-key-op').forEach(btn => {
+    btn.classList.toggle('is-selected', calc.operator === btn.dataset.op && !calc.justEvaluated);
+  });
+}
+
+function calcResetAll() {
+  calc = { current: '0', previous: null, operator: null, justEvaluated: false };
+  calcRender();
+}
+
+function calcApplyOperator(a, b, op) {
+  switch (op) {
+    case '+': return a + b;
+    case '−': return a - b;
+    case '×': return a * b;
+    case '÷': return b === 0 ? NaN : a / b;
+    default: return b;
+  }
+}
+
+function calcInputDigit(d) {
+  if (calc.justEvaluated) {
+    calc.current = d;
+    calc.previous = null;
+    calc.operator = null;
+    calc.justEvaluated = false;
+    calcRender();
+    return;
+  }
+  if (calc.current === '0') {
+    calc.current = d;
+  } else {
+    if (calc.current.replace('-', '').length >= 12) return; // 桁数制限
+    calc.current += d;
+  }
+  calcRender();
+}
+
+function calcInputDot() {
+  if (calc.justEvaluated) {
+    calc.current = '0.';
+    calc.previous = null;
+    calc.operator = null;
+    calc.justEvaluated = false;
+    calcRender();
+    return;
+  }
+  if (!calc.current.includes('.')) {
+    calc.current += '.';
+    calcRender();
+  }
+}
+
+function calcInputOperator(op) {
+  calc.justEvaluated = false;
+  if (calc.operator && calc.previous !== null) {
+    // 連続演算: 先に今までの式を計算してから次の演算子を構える
+    const result = calcApplyOperator(calc.previous, parseFloat(calc.current), calc.operator);
+    calc.previous = Number.isFinite(result) ? result : 0;
+    calc.current = String(calc.previous);
+  } else {
+    calc.previous = parseFloat(calc.current);
+  }
+  calc.operator = op;
+  calc.current = '0';
+  calcRender();
+}
+
+function calcEquals() {
+  if (calc.operator === null || calc.previous === null) return;
+  const result = calcApplyOperator(calc.previous, parseFloat(calc.current), calc.operator);
+  calc.current = Number.isFinite(result) ? String(result) : '0';
+  calc.previous = null;
+  calc.operator = null;
+  calc.justEvaluated = true;
+  calcRender();
+}
+
+function calcClear() {
+  calcResetAll();
+}
+
+function calcBackspace() {
+  if (calc.justEvaluated) {
+    calcResetAll();
+    return;
+  }
+  if (calc.current.length <= 1 || (calc.current.length === 2 && calc.current.startsWith('-'))) {
+    calc.current = '0';
+  } else {
+    calc.current = calc.current.slice(0, -1);
+  }
+  calcRender();
+}
+
+function calcPercent() {
+  const val = parseFloat(calc.current);
+  if (!Number.isFinite(val)) return;
+  calc.current = String(val / 100);
+  calcRender();
+}
+
+calcGrid.addEventListener('click', (e) => {
+  const btn = e.target.closest('.calc-key');
+  if (!btn) return;
+  if (btn.dataset.num !== undefined) {
+    calcInputDigit(btn.dataset.num);
+  } else if (btn.dataset.op) {
+    calcInputOperator(btn.dataset.op);
+  } else if (btn.dataset.action === 'equals') {
+    calcEquals();
+  } else if (btn.dataset.action === 'clear') {
+    calcClear();
+  } else if (btn.dataset.action === 'backspace') {
+    calcBackspace();
+  } else if (btn.dataset.action === 'percent') {
+    calcPercent();
+  } else if (btn.dataset.action === 'dot') {
+    calcInputDot();
+  }
+});
+
+openCalculatorBtn.addEventListener('click', () => {
+  // 入力欄にすでに金額があれば、その値から電卓を開始する
+  const existingValue = parseFloat(fAmount.value);
+  calcResetAll();
+  if (Number.isFinite(existingValue) && existingValue > 0) {
+    calc.current = String(existingValue);
+    calcRender();
+  }
+  calculatorDialog.showModal();
+});
+
+calcCancelBtn.addEventListener('click', () => calculatorDialog.close());
+
+calcApplyBtn.addEventListener('click', () => {
+  // 演算子が入力されたまま確定された場合は、その時点までを計算してから反映する
+  let finalValue;
+  if (calc.operator !== null && calc.previous !== null) {
+    finalValue = calcApplyOperator(calc.previous, parseFloat(calc.current), calc.operator);
+  } else {
+    finalValue = parseFloat(calc.current);
+  }
+  if (!Number.isFinite(finalValue)) finalValue = 0;
+  const rounded = Math.round(finalValue);
+  fAmount.value = rounded >= 0 ? rounded : 0;
+  calculatorDialog.close();
+});
+
 function openEntryDialog(existing = null) {
   state.editingId = existing ? existing.id : null;
   document.getElementById('entry-dialog-title').textContent = existing ? '記録を編集' : '支出を記録';
