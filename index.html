@@ -56,7 +56,21 @@
 
     <label class="field">
       <span class="field-label">金額</span>
-      <input type="number" id="f-amount" inputmode="numeric" min="0" step="1" placeholder="0" required>
+      <div class="amount-row">
+        <input type="number" id="f-amount" inputmode="numeric" min="0" step="1" placeholder="0" required>
+        <button type="button" id="open-calculator" class="calc-btn" aria-label="電卓を開く">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <rect x="4.5" y="3" width="15" height="18" rx="2.4" fill="none" stroke="currentColor" stroke-width="1.6"/>
+            <rect x="7" y="5.6" width="10" height="4" rx="0.8" fill="none" stroke="currentColor" stroke-width="1.5"/>
+            <circle cx="7.8" cy="13.2" r="1" fill="currentColor"/>
+            <circle cx="12" cy="13.2" r="1" fill="currentColor"/>
+            <circle cx="16.2" cy="13.2" r="1" fill="currentColor"/>
+            <circle cx="7.8" cy="17" r="1" fill="currentColor"/>
+            <circle cx="12" cy="17" r="1" fill="currentColor"/>
+            <circle cx="16.2" cy="17" r="1" fill="currentColor"/>
+          </svg>
+        </button>
+      </div>
     </label>
 
     <label class="field">
@@ -96,6 +110,42 @@
       <button type="submit" class="btn btn-primary">保存</button>
     </div>
   </form>
+</dialog>
+
+<!-- 電卓モーダル -->
+<dialog id="calculator-dialog" class="calculator-dialog">
+  <div class="calculator">
+    <div class="calc-display" id="calc-display">0</div>
+    <div class="calc-grid">
+      <button type="button" class="calc-key calc-key-func" data-action="clear">C</button>
+      <button type="button" class="calc-key calc-key-func" data-action="backspace">⌫</button>
+      <button type="button" class="calc-key calc-key-func" data-action="percent">%</button>
+      <button type="button" class="calc-key calc-key-op" data-op="÷">÷</button>
+
+      <button type="button" class="calc-key" data-num="7">7</button>
+      <button type="button" class="calc-key" data-num="8">8</button>
+      <button type="button" class="calc-key" data-num="9">9</button>
+      <button type="button" class="calc-key calc-key-op" data-op="×">×</button>
+
+      <button type="button" class="calc-key" data-num="4">4</button>
+      <button type="button" class="calc-key" data-num="5">5</button>
+      <button type="button" class="calc-key" data-num="6">6</button>
+      <button type="button" class="calc-key calc-key-op" data-op="−">−</button>
+
+      <button type="button" class="calc-key" data-num="1">1</button>
+      <button type="button" class="calc-key" data-num="2">2</button>
+      <button type="button" class="calc-key" data-num="3">3</button>
+      <button type="button" class="calc-key calc-key-op" data-op="+">+</button>
+
+      <button type="button" class="calc-key calc-key-zero" data-num="0">0</button>
+      <button type="button" class="calc-key" data-action="dot">.</button>
+      <button type="button" class="calc-key calc-key-equals" data-action="equals">=</button>
+    </div>
+    <div class="calc-dialog-actions">
+      <button type="button" id="calc-cancel" class="btn btn-ghost">キャンセル</button>
+      <button type="button" id="calc-apply" class="btn btn-primary">この金額を使う</button>
+    </div>
+  </div>
 </dialog>
 
 <button id="fab-add" class="fab" aria-label="支出を記録する">
