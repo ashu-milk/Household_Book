@@ -704,7 +704,8 @@ function renderPayeeSubview() { payeeManager.renderSubview(); }
 /* ---- 定期支払い（毎月定額の自動入力設定）管理 ---- */
 function recurringSummaryLine(r) {
   const period = r.endDate ? `${r.startMonth}〜${r.endDate}` : `${r.startMonth}〜`;
-  return `毎月${r.payDay}日・${period}`;
+  const extra = [r.subtype, r.payee].filter(Boolean).join('・');
+  return `毎月${r.payDay}日・${period}${extra ? ' ・ ' + extra : ''}`;
 }
 
 function renderRecurringSubview() {
@@ -789,6 +790,14 @@ function openRecurringDialog(existing = null) {
       `<option value="${d}" ${existing && existing.payDay === d ? 'selected' : ''}>${d}日</option>`
     ).join('');
 
+    // 開始月（年・月）／終了日（年・月・日）の初期値を西暦の数値に分解しておく
+    const startParts = existing
+      ? { y: Number(existing.startMonth.split('-')[0]), m: Number(existing.startMonth.split('-')[1]) }
+      : { y: new Date().getFullYear(), m: new Date().getMonth() + 1 };
+    const endParts = existing && existing.endDate
+      ? { y: Number(existing.endDate.split('-')[0]), m: Number(existing.endDate.split('-')[1]), d: Number(existing.endDate.split('-')[2]) }
+      : null;
+
     dlg.innerHTML = `
       <h3>${existing ? '定期支払いを編集' : '定期支払いを追加'}</h3>
       <div class="recurring-form-scroll">
@@ -819,17 +828,39 @@ function openRecurringDialog(existing = null) {
           <select id="rf-category">${categoryOptions}</select>
         </div>
         <div class="field">
+          <span class="field-label">種別（任意）</span>
+          <div class="combo" id="rf-subtype-combo">
+            <input type="text" id="rf-subtype" placeholder="例：歯科、ガソリン代" autocomplete="off" value="${existing ? escapeHTML(existing.subtype || '') : ''}">
+            <ul class="combo-list" id="rf-subtype-list" role="listbox" hidden></ul>
+          </div>
+        </div>
+        <div class="field">
+          <span class="field-label">支払い先（任意）</span>
+          <div class="combo" id="rf-payee-combo">
+            <input type="text" id="rf-payee" placeholder="例：イオン、〇〇内科クリニック" autocomplete="off" value="${existing ? escapeHTML(existing.payee || '') : ''}">
+            <ul class="combo-list" id="rf-payee-list" role="listbox" hidden></ul>
+          </div>
+        </div>
+        <div class="field">
           <label class="field-label">支払い日（毎月）</label>
           <select id="rf-payday">${dayOptions}</select>
         </div>
         <div class="field">
           <label class="field-label">開始月</label>
-          <input type="month" id="rf-startmonth" value="${existing ? existing.startMonth : currentMonthKey()}">
+          <div class="era-toggle" id="rf-startmonth-era">
+            <button type="button" class="era-btn is-active" data-era="seireki">西暦</button>
+            <button type="button" class="era-btn" data-era="wareki">和暦</button>
+          </div>
+          <div class="ymd-row" id="rf-startmonth-fields"></div>
         </div>
         <div class="field">
           <label class="field-label">終了日（任意）</label>
-          <input type="date" id="rf-enddate" value="${existing && existing.endDate ? existing.endDate : ''}">
-          <p class="field-hint">設定すると、この日を過ぎた月は自動入力されなくなります。</p>
+          <div class="era-toggle" id="rf-enddate-era">
+            <button type="button" class="era-btn is-active" data-era="seireki">西暦</button>
+            <button type="button" class="era-btn" data-era="wareki">和暦</button>
+          </div>
+          <div class="ymd-row" id="rf-enddate-fields"></div>
+          <p class="field-hint">設定すると、この日を過ぎた月は自動入力されなくなります。空欄のままにすると終了日なしになります。</p>
         </div>
       </div>
       <div class="btn-row">
@@ -838,6 +869,14 @@ function openRecurringDialog(existing = null) {
       </div>
     `;
     document.body.appendChild(dlg);
+
+    // 種別・支払い先のコンボボックス（記録入力モーダルと共通のロジックを再利用）
+    setupCombo('rf-subtype-combo', 'rf-subtype', 'rf-subtype-list', () => state.subtypes.map(s => s.name));
+    setupCombo('rf-payee-combo', 'rf-payee', 'rf-payee-list', () => state.payees.map(p => p.name));
+
+    // 開始月（年・月の2項目）・終了日（年・月・日の3項目、空欄可）の西暦/和暦切替フィールドを構築
+    const startField = setupEraDateField(dlg, 'rf-startmonth', { hasDay: false, initial: startParts, required: true });
+    const endField = setupEraDateField(dlg, 'rf-enddate', { hasDay: true, initial: endParts, required: false });
 
     const typeSeg = dlg.querySelector('#rf-type-seg');
     const cardField = dlg.querySelector('#rf-cardname-field');
@@ -867,16 +906,24 @@ function openRecurringDialog(existing = null) {
         const type = typeSeg.querySelector('.seg-btn.is-active').dataset.type;
         const cardName = type === 'card' ? dlg.querySelector('#rf-cardname').value : '';
         const category = dlg.querySelector('#rf-category').value;
+        const subtype = dlg.querySelector('#rf-subtype').value.trim();
+        const payee = dlg.querySelector('#rf-payee').value.trim();
         const payDay = Number(dlg.querySelector('#rf-payday').value);
-        const startMonth = dlg.querySelector('#rf-startmonth').value;
-        const endDate = dlg.querySelector('#rf-enddate').value;
+
+        const startResult = startField.getISOValue(); // { iso, error } 形式
+        if (startResult.error) { showToast(startResult.error); return; }
+        const startMonth = startResult.iso;
+
+        const endResult = endField.getISOValue();
+        if (endResult.error) { showToast(endResult.error); return; }
+        const endDate = endResult.iso || '';
 
         if (!name) { showToast('名称を入力してください'); return; }
         if (!amount || amount <= 0) { showToast('金額を入力してください'); return; }
         if (!category) { showToast('カテゴリを選択してください'); return; }
-        if (!startMonth) { showToast('開始月を選択してください'); return; }
+        if (!startMonth) { showToast('開始月を入力してください'); return; }
 
-        const data = { name, amount, type, cardName, category, subtype: '', payee: '', payDay, startMonth, endDate };
+        const data = { name, amount, type, cardName, category, subtype, payee, payDay, startMonth, endDate };
 
         if (existing) {
           await DB.updateRecurring({ ...existing, ...data });
@@ -897,6 +944,150 @@ function openRecurringDialog(existing = null) {
     dlg.addEventListener('cancel', () => { dlg.remove(); resolve(null); });
     dlg.showModal();
   });
+}
+
+/* 西暦/和暦を切り替えながら年・月（・日）を手入力できるフィールドを構築する。
+   fieldId: 'rf-startmonth' や 'rf-enddate' のようなベースID。
+     -> '#{fieldId}-era' (トグルボタンの入っているdiv) と
+        '#{fieldId}-fields' (年月日の入力欄を入れるdiv) を対象にDOMを生成する。
+   options.hasDay: true なら日の入力欄も出す（終了日用）。false なら年月のみ（開始月用）。
+   options.initial: { y, m, d? } 形式の西暦での初期値。終了日が未設定の場合は null。
+   options.required: true なら年月が空欄だとエラーを返す。
+
+   戻り値: { getISOValue() } — 現在の入力内容を 'YYYY-MM' または 'YYYY-MM-DD' のISO文字列に
+   変換して返す。和暦入力時は西暦に変換してから返す。不正な値の場合は { error: '...' } を返す。 */
+function setupEraDateField(dlg, fieldId, { hasDay, initial, required }) {
+  const eraToggle = dlg.querySelector(`#${fieldId}-era`);
+  const fieldsContainer = dlg.querySelector(`#${fieldId}-fields`);
+  let currentEra = 'seireki'; // 'seireki' | 'wareki'
+
+  function renderFields() {
+    let y = '', m = '', d = '', selectedEraKanji = ERAS[0].kanji;
+    if (initial) {
+      if (currentEra === 'seireki') {
+        y = initial.y;
+      } else {
+        const w = toWareki(initial.y);
+        if (w) {
+          y = w.year;
+          selectedEraKanji = w.era;
+        }
+      }
+      m = initial.m;
+      d = hasDay ? (initial.d || '') : '';
+    }
+
+    const eraSelectHTML = currentEra === 'wareki'
+      ? `<select class="ymd-era-name">
+           ${ERAS.map(e => `<option value="${e.kanji}" ${e.kanji === selectedEraKanji ? 'selected' : ''}>${e.kanji}</option>`).join('')}
+         </select>`
+      : '';
+
+    fieldsContainer.innerHTML = `
+      ${eraSelectHTML}
+      <input type="number" class="ymd-year" placeholder="${currentEra === 'seireki' ? '年（例:2026）' : '年（例:8）'}" min="1" value="${y}">
+      <span class="ymd-sep">年</span>
+      <input type="number" class="ymd-month" placeholder="月" min="1" max="12" value="${m}">
+      <span class="ymd-sep">月</span>
+      ${hasDay ? `
+        <input type="number" class="ymd-day" placeholder="日" min="1" max="31" value="${d}">
+        <span class="ymd-sep">日</span>
+      ` : ''}
+    `;
+  }
+
+  renderFields();
+
+  eraToggle.querySelectorAll('.era-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const newEra = btn.dataset.era;
+      if (newEra === currentEra) return;
+
+      // 切り替え時、今入力されている年を変換して引き継ぐ（手入力中の値を消さないため）
+      const yearInput = fieldsContainer.querySelector('.ymd-year');
+      const eraNameSelect = fieldsContainer.querySelector('.ymd-era-name');
+      const typedYear = yearInput && yearInput.value ? Number(yearInput.value) : null;
+
+      let seirekiYear = null;
+      if (typedYear !== null) {
+        if (currentEra === 'seireki') {
+          seirekiYear = typedYear;
+        } else {
+          const eraName = eraNameSelect ? eraNameSelect.value : ERAS[0].kanji;
+          seirekiYear = fromWareki(eraName, typedYear);
+        }
+      }
+
+      currentEra = newEra;
+      eraToggle.querySelectorAll('.era-btn').forEach(b => b.classList.toggle('is-active', b === btn));
+
+      if (seirekiYear !== null) {
+        initial = { ...(initial || {}), y: seirekiYear };
+      }
+      renderFields();
+    });
+  });
+
+  function getISOValue() {
+    const yearInput = fieldsContainer.querySelector('.ymd-year');
+    const monthInput = fieldsContainer.querySelector('.ymd-month');
+    const dayInput = hasDay ? fieldsContainer.querySelector('.ymd-day') : null;
+    const eraNameSelect = fieldsContainer.querySelector('.ymd-era-name');
+
+    const yearStr = yearInput.value.trim();
+    const monthStr = monthInput.value.trim();
+    const dayStr = dayInput ? dayInput.value.trim() : '';
+
+    // 終了日は空欄可。年・月・日のいずれも空欄なら「未設定」として扱う
+    if (!required && !yearStr && !monthStr && !dayStr) {
+      return { iso: '' };
+    }
+
+    if (!yearStr || !monthStr) {
+      return { error: '年と月を入力してください' };
+    }
+    if (hasDay && !dayStr) {
+      return { error: '日を入力してください' };
+    }
+
+    const month = Number(monthStr);
+    if (!Number.isInteger(month) || month < 1 || month > 12) {
+      return { error: '月は1〜12の数字で入力してください' };
+    }
+
+    let seirekiYear;
+    if (currentEra === 'seireki') {
+      seirekiYear = Number(yearStr);
+      if (!Number.isInteger(seirekiYear) || seirekiYear < 1900 || seirekiYear > 2100) {
+        return { error: '年（西暦）は正しい数字で入力してください' };
+      }
+    } else {
+      const eraName = eraNameSelect ? eraNameSelect.value : ERAS[0].kanji;
+      const warekiYear = Number(yearStr);
+      if (!Number.isInteger(warekiYear) || warekiYear < 1) {
+        return { error: '年（和暦）は正しい数字で入力してください' };
+      }
+      seirekiYear = fromWareki(eraName, warekiYear);
+      if (seirekiYear === null) {
+        return { error: '和暦の元号を選択してください' };
+      }
+    }
+
+    if (hasDay) {
+      const day = Number(dayStr);
+      const lastDay = new Date(seirekiYear, month, 0).getDate();
+      if (!Number.isInteger(day) || day < 1 || day > lastDay) {
+        return { error: `日は1〜${lastDay}の数字で入力してください` };
+      }
+      const iso = `${seirekiYear}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      return { iso };
+    } else {
+      const iso = `${seirekiYear}-${String(month).padStart(2, '0')}`;
+      return { iso };
+    }
+  }
+
+  return { getISOValue };
 }
 
 function startEditCategory(row, category) {
@@ -1368,6 +1559,35 @@ function todayISO() {
 }
 function escapeHTML(str) {
   return String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+/* ===================== 和暦変換ユーティリティ ===================== */
+// 元号テーブル: 各元号の開始年(西暦)。境界年は1月1日始まりとして簡略化して扱う
+// （改元月日まで厳密に扱うと定期支払いの「年・月」入力には不要に複雑になるため）
+const ERAS = [
+  { name: '令和', kanji: '令和', start: 2019 },
+  { name: '平成', kanji: '平成', start: 1989 },
+  { name: '昭和', kanji: '昭和', start: 1926 },
+  { name: '大正', kanji: '大正', start: 1912 },
+  { name: '明治', kanji: '明治', start: 1873 },
+];
+
+// 西暦年 -> { era: '令和', year: 8 } のような和暦表現に変換
+function toWareki(seireki) {
+  for (const e of ERAS) {
+    if (seireki >= e.start) {
+      const y = seireki - e.start + 1;
+      return { era: e.kanji, year: y };
+    }
+  }
+  return null; // 明治より前は扱わない
+}
+
+// 和暦(元号名 + 年) -> 西暦年。該当する元号がなければ null
+function fromWareki(eraKanji, warekiYear) {
+  const e = ERAS.find(e => e.kanji === eraKanji);
+  if (!e) return null;
+  return e.start + warekiYear - 1;
 }
 
 /* カレンダーの日付セルに表示する金額（漢字・英字を使わず数字のみ、コンマ区切り） */
