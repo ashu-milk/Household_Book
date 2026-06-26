@@ -978,20 +978,29 @@ function setupEraDateField(dlg, fieldId, { hasDay, initial, required }) {
     }
 
     const eraSelectHTML = currentEra === 'wareki'
-      ? `<select class="ymd-era-name">
-           ${ERAS.map(e => `<option value="${e.kanji}" ${e.kanji === selectedEraKanji ? 'selected' : ''}>${e.kanji}</option>`).join('')}
-         </select>`
+      ? `<div class="ymd-item ymd-item-era">
+           <span class="ymd-label">元号</span>
+           <select class="ymd-era-name">
+             ${ERAS.map(e => `<option value="${e.kanji}" ${e.kanji === selectedEraKanji ? 'selected' : ''}>${e.kanji}</option>`).join('')}
+           </select>
+         </div>`
       : '';
 
     fieldsContainer.innerHTML = `
       ${eraSelectHTML}
-      <input type="number" class="ymd-year" placeholder="${currentEra === 'seireki' ? '年（例:2026）' : '年（例:8）'}" min="1" value="${y}">
-      <span class="ymd-sep">年</span>
-      <input type="number" class="ymd-month" placeholder="月" min="1" max="12" value="${m}">
-      <span class="ymd-sep">月</span>
+      <div class="ymd-item">
+        <span class="ymd-label">年</span>
+        <input type="number" class="ymd-year" placeholder="${currentEra === 'seireki' ? '2026' : '8'}" min="1" value="${y}">
+      </div>
+      <div class="ymd-item">
+        <span class="ymd-label">月</span>
+        <input type="number" class="ymd-month" placeholder="1〜12" min="1" max="12" value="${m}">
+      </div>
       ${hasDay ? `
-        <input type="number" class="ymd-day" placeholder="日" min="1" max="31" value="${d}">
-        <span class="ymd-sep">日</span>
+        <div class="ymd-item">
+          <span class="ymd-label">日</span>
+          <input type="number" class="ymd-day" placeholder="1〜31" min="1" max="31" value="${d}">
+        </div>
       ` : ''}
     `;
   }
