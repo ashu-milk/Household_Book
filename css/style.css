@@ -542,6 +542,58 @@ a, button { font-family: inherit; }
 .recurring-form-scroll { overflow-y: auto; padding-right: 2px; margin-bottom: 14px; }
 .field-hint { font-size: 11px; color: var(--ink-faint); margin: 4px 0 0; line-height: 1.3; }
 
+/* 西暦/和暦トグル＋年・月（・日）の手入力欄（定期支払いの開始月・終了日） */
+.era-toggle {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.era-btn {
+  border: 2px solid var(--rule);
+  border-radius: var(--radius-btn);
+  background: var(--paper-raised);
+  color: var(--ink-soft);
+  font-size: 12.5px;
+  padding: 5px 14px;
+  cursor: pointer;
+}
+.era-btn.is-active {
+  background: var(--indigo-soft);
+  color: var(--indigo);
+  border-color: var(--indigo-mid);
+  font-weight: 700;
+}
+.ymd-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.ymd-row input {
+  border: 2px solid var(--rule);
+  border-radius: 12px;
+  padding: 9px 8px;
+  font-size: 14px;
+  background: var(--paper-raised);
+  color: var(--ink);
+  text-align: center;
+  min-width: 0;
+}
+.ymd-row input.ymd-year { flex: 1.4 1 0; }
+.ymd-row input.ymd-month { flex: 1 1 0; }
+.ymd-row input.ymd-day { flex: 1 1 0; }
+.ymd-row select.ymd-era-name {
+  flex: 1.2 1 0;
+  border: 2px solid var(--rule);
+  border-radius: 12px;
+  padding: 9px 6px;
+  font-size: 13.5px;
+  background: var(--paper-raised);
+  color: var(--ink);
+  min-width: 0;
+}
+.ymd-sep { font-size: 12.5px; color: var(--ink-soft); flex-shrink: 0; }
+
 /* ===== Buttons (枠で囲む統一スタイル) ===== */
 .btn {
   border: 2.5px solid var(--ink);
