@@ -195,7 +195,7 @@ export const DB = {
     const store = await tx('categories', 'readonly');
     return new Promise((resolve, reject) => {
       const req = store.getAll();
-      req.onsuccess = () => resolve(req.result.sort((a, b) => a.order - b.order));
+      req.onsuccess = () => resolve(req.result.sort((a, b) => a.name.localeCompare(b.name, 'ja')));
       req.onerror = (e) => reject(e.target.error);
     });
   },
@@ -251,7 +251,7 @@ export const DB = {
     const store = await tx('cards', 'readonly');
     return new Promise((resolve, reject) => {
       const req = store.getAll();
-      req.onsuccess = () => resolve(req.result.sort((a, b) => a.order - b.order));
+      req.onsuccess = () => resolve(req.result.sort((a, b) => a.name.localeCompare(b.name, 'ja')));
       req.onerror = (e) => reject(e.target.error);
     });
   },
@@ -307,7 +307,7 @@ export const DB = {
     const store = await tx('subtypes', 'readonly');
     return new Promise((resolve, reject) => {
       const req = store.getAll();
-      req.onsuccess = () => resolve(req.result.sort((a, b) => a.order - b.order));
+      req.onsuccess = () => resolve(req.result.sort((a, b) => a.name.localeCompare(b.name, 'ja')));
       req.onerror = (e) => reject(e.target.error);
     });
   },
@@ -363,7 +363,7 @@ export const DB = {
     const store = await tx('payees', 'readonly');
     return new Promise((resolve, reject) => {
       const req = store.getAll();
-      req.onsuccess = () => resolve(req.result.sort((a, b) => a.order - b.order));
+      req.onsuccess = () => resolve(req.result.sort((a, b) => a.name.localeCompare(b.name, 'ja')));
       req.onerror = (e) => reject(e.target.error);
     });
   },
