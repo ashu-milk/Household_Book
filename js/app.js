@@ -521,8 +521,11 @@ function renderCategoryList() {
         cancelLabel: 'キャンセル'
       });
       if (ok === 'confirm') {
+        // このカテゴリーに紐づいている種別は「未分類」に戻す（紐づけ先が消えて孤立しないようにする）
+        await DB.renameCategoryInSubtypes(c.name, '');
         await DB.deleteCategory(c.id);
         state.categories = await DB.listCategories();
+        state.subtypes = await DB.listSubtypes();
         renderCategoryList();
       }
     });
@@ -538,14 +541,22 @@ function renderCategoryList() {
    カテゴリ以外の単純な名前リスト(カード/種別/支払い先)はこの仕組みで生成する。
    ファクトリが呼ばれるたびに、対応する listXxx/addXxx/updateXxx/deleteXxx/renameXxxInTransactions
    を DB から呼び出す形にして、見た目と挙動を統一する。 */
-function createSimpleListManager({ stateKey, listFn, addFn, updateFn, deleteFn, renameFn, txField, label, emptyText, placeholder }) {
+function createSimpleListManager({ stateKey, listFn, addFn, updateFn, deleteFn, renameFn, txField, label, emptyText, placeholder, withCategory }) {
+  function categoryOptionsHTML(selected) {
+    return `<option value="">未分類</option>` + state.categories.map(c =>
+      `<option value="${escapeHTML(c.name)}" ${selected === c.name ? 'selected' : ''}>${escapeHTML(c.name)}</option>`
+    ).join('');
+  }
+
   function renderSubview() {
     const content = document.getElementById('subtab-content');
     content.innerHTML = `
       <h2 class="section-title">${label}の管理</h2>
+      ${withCategory ? `<p class="section-desc">カテゴリーを紐づけると、記録入力時にそのカテゴリーを選んだ場合のみ候補に表示されます。「未分類」のままにすると、どのカテゴリーを選んでも候補に表示されます。</p>` : ''}
       <div class="settings-group">
         <div class="category-add-row">
           <input type="text" id="new-${stateKey}-input" placeholder="${placeholder}">
+          ${withCategory ? `<select id="new-${stateKey}-category">${categoryOptionsHTML('')}</select>` : ''}
           <button id="btn-add-${stateKey}" class="btn btn-secondary btn-small">追加</button>
         </div>
         <div class="category-manage-list" id="simple-list-${stateKey}"></div>
@@ -570,9 +581,20 @@ function createSimpleListManager({ stateKey, listFn, addFn, updateFn, deleteFn, 
       const row = document.createElement('div');
       row.className = 'category-manage-row';
 
+      const nameWrap = document.createElement('div');
+      nameWrap.className = 'category-manage-name-wrap';
+
       const nameSpan = document.createElement('span');
       nameSpan.textContent = item.name;
-      row.appendChild(nameSpan);
+      nameWrap.appendChild(nameSpan);
+
+      if (withCategory) {
+        const catSpan = document.createElement('span');
+        catSpan.className = 'category-manage-tag';
+        catSpan.textContent = item.category || '未分類';
+        nameWrap.appendChild(catSpan);
+      }
+      row.appendChild(nameWrap);
 
       const actions = document.createElement('div');
       actions.className = 'category-manage-actions';
@@ -611,6 +633,15 @@ function createSimpleListManager({ stateKey, listFn, addFn, updateFn, deleteFn, 
     const input = document.createElement('input');
     input.type = 'text';
     input.value = item.name;
+    row.appendChild(input);
+
+    let categorySelect = null;
+    if (withCategory) {
+      categorySelect = document.createElement('select');
+      categorySelect.className = 'category-manage-edit-select';
+      categorySelect.innerHTML = categoryOptionsHTML(item.category || '');
+      row.appendChild(categorySelect);
+    }
 
     const actions = document.createElement('div');
     actions.className = 'category-manage-actions';
@@ -630,7 +661,9 @@ function createSimpleListManager({ stateKey, listFn, addFn, updateFn, deleteFn, 
       const newName = input.value.trim();
       if (!newName) { showToast(`${label}名を入力してください`); return; }
       const oldName = item.name;
-      await updateFn({ ...item, name: newName });
+      const updated = { ...item, name: newName };
+      if (withCategory) updated.category = categorySelect.value;
+      await updateFn(updated);
       if (oldName !== newName && renameFn) {
         await renameFn(oldName, newName);
       }
@@ -643,7 +676,6 @@ function createSimpleListManager({ stateKey, listFn, addFn, updateFn, deleteFn, 
 
     actions.appendChild(cancelBtn);
     actions.appendChild(saveBtn);
-    row.appendChild(input);
     row.appendChild(actions);
     input.focus();
     input.select();
@@ -653,9 +685,15 @@ function createSimpleListManager({ stateKey, listFn, addFn, updateFn, deleteFn, 
     const input = document.getElementById(`new-${stateKey}-input`);
     const name = input.value.trim();
     if (!name) return;
-    await addFn({ name, order: state[stateKey].length });
+    const data = { name, order: state[stateKey].length };
+    if (withCategory) {
+      const categorySelect = document.getElementById(`new-${stateKey}-category`);
+      data.category = categorySelect.value;
+    }
+    await addFn(data);
     state[stateKey] = await listFn();
     input.value = '';
+    if (withCategory) document.getElementById(`new-${stateKey}-category`).value = '';
     renderList();
   }
 
@@ -684,7 +722,8 @@ const subtypeManager = createSimpleListManager({
   renameFn: (oldName, newName) => DB.renameSubtypeInTransactions(oldName, newName),
   label: '種別',
   emptyText: '登録されている種別はありません',
-  placeholder: '新しい種別名（例：歯科、ガソリン代）'
+  placeholder: '新しい種別名（例：歯科、ガソリン代）',
+  withCategory: true
 });
 function renderSubtypeSubview() { subtypeManager.renderSubview(); }
 
@@ -871,7 +910,12 @@ function openRecurringDialog(existing = null) {
     document.body.appendChild(dlg);
 
     // 種別・支払い先のコンボボックス（記録入力モーダルと共通のロジックを再利用）
-    setupCombo('rf-subtype-combo', 'rf-subtype', 'rf-subtype-list', () => state.subtypes.map(s => s.name));
+    setupCombo('rf-subtype-combo', 'rf-subtype', 'rf-subtype-list', () => {
+      const selectedCategory = dlg.querySelector('#rf-category').value;
+      return state.subtypes
+        .filter(s => !s.category || s.category === selectedCategory)
+        .map(s => s.name);
+    });
     setupCombo('rf-payee-combo', 'rf-payee', 'rf-payee-list', () => state.payees.map(p => p.name));
 
     // 開始月（年・月の2項目）・終了日（年・月・日の3項目、空欄可）の西暦/和暦切替フィールドを構築
@@ -922,6 +966,17 @@ function openRecurringDialog(existing = null) {
         if (!amount || amount <= 0) { showToast('金額を入力してください'); return; }
         if (!category) { showToast('カテゴリを選択してください'); return; }
         if (!startMonth) { showToast('開始月を入力してください'); return; }
+
+        // 手入力された新しい種別・支払い先は、候補として一覧に自動登録する
+        // （種別は今選んでいるカテゴリーに紐づけて登録する）
+        if (subtype && !state.subtypes.some(s => s.name === subtype)) {
+          await DB.addSubtype({ name: subtype, category, order: state.subtypes.length });
+          state.subtypes = await DB.listSubtypes();
+        }
+        if (payee && !state.payees.some(p => p.name === payee)) {
+          await DB.addPayee({ name: payee, order: state.payees.length });
+          state.payees = await DB.listPayees();
+        }
 
         const data = { name, amount, type, cardName, category, subtype, payee, payDay, startMonth, endDate };
 
@@ -1126,6 +1181,7 @@ function startEditCategory(row, category) {
     await DB.updateCategory({ ...category, name: newName });
     if (oldName !== newName) {
       await DB.renameCategoryInTransactions(oldName, newName);
+      await DB.renameCategoryInSubtypes(oldName, newName);
     }
     await loadAll();
     renderCategoryList();
@@ -1244,7 +1300,12 @@ function setupCombo(comboId, inputId, listId, getOptions) {
   });
 }
 
-setupCombo('f-subtype-combo', 'f-subtype', 'f-subtype-list', () => state.subtypes.map(s => s.name));
+setupCombo('f-subtype-combo', 'f-subtype', 'f-subtype-list', () => {
+  const selectedCategory = fCategory.value;
+  return state.subtypes
+    .filter(s => !s.category || s.category === selectedCategory)
+    .map(s => s.name);
+});
 setupCombo('f-payee-combo', 'f-payee', 'f-payee-list', () => state.payees.map(p => p.name));
 
 /* ===================== 電卓モーダル ===================== */
@@ -1493,8 +1554,9 @@ entryForm.addEventListener('submit', async (e) => {
   if (!data.category) { showToast('カテゴリを選択してください'); return; }
 
   // 手入力された新しい種別・支払い先は、候補として一覧に自動登録する
+  // （種別は今選んでいるカテゴリーに紐づけて登録する）
   if (subtypeValue && !state.subtypes.some(s => s.name === subtypeValue)) {
-    await DB.addSubtype({ name: subtypeValue, order: state.subtypes.length });
+    await DB.addSubtype({ name: subtypeValue, category: data.category, order: state.subtypes.length });
   }
   if (payeeValue && !state.payees.some(p => p.name === payeeValue)) {
     await DB.addPayee({ name: payeeValue, order: state.payees.length });

@@ -182,6 +182,25 @@ export const DB = {
     });
   },
 
+  // カテゴリー名を変更した時、その名前に紐づいている種別の紐づけも追従させる
+  async renameCategoryInSubtypes(oldName, newName) {
+    const store = await tx('subtypes', 'readwrite');
+    return new Promise((resolve, reject) => {
+      const req = store.getAll();
+      req.onsuccess = () => {
+        const all = req.result.filter(s => s.category === oldName);
+        let remaining = all.length;
+        if (remaining === 0) { resolve(); return; }
+        all.forEach(s => {
+          const putReq = store.put({ ...s, category: newName });
+          putReq.onsuccess = () => { remaining--; if (remaining === 0) resolve(); };
+          putReq.onerror = (e) => reject(e.target.error);
+        });
+      };
+      req.onerror = (e) => reject(e.target.error);
+    });
+  },
+
   async deleteCategory(id) {
     const store = await tx('categories', 'readwrite');
     return new Promise((resolve, reject) => {
@@ -259,7 +278,7 @@ export const DB = {
   // ---- subtypes (種別) ----
   async addSubtype(data) {
     const store = await tx('subtypes', 'readwrite');
-    const record = { id: genId(), name: data.name, order: data.order ?? 999 };
+    const record = { id: genId(), name: data.name, category: data.category || '', order: data.order ?? 999 };
     return new Promise((resolve, reject) => {
       const req = store.add(record);
       req.onsuccess = () => resolve(record);
