@@ -476,11 +476,11 @@ function renderCategorySubview() {
   content.innerHTML = `
     <h2 class="section-title">カテゴリの管理</h2>
     <div class="settings-group">
-      <div class="category-manage-list" id="category-list"></div>
       <div class="category-add-row">
         <input type="text" id="new-category-input" placeholder="新しいカテゴリ名">
         <button id="btn-add-category" class="btn btn-secondary btn-small">追加</button>
       </div>
+      <div class="category-manage-list" id="category-list"></div>
     </div>
   `;
 
@@ -544,11 +544,11 @@ function createSimpleListManager({ stateKey, listFn, addFn, updateFn, deleteFn, 
     content.innerHTML = `
       <h2 class="section-title">${label}の管理</h2>
       <div class="settings-group">
-        <div class="category-manage-list" id="simple-list-${stateKey}"></div>
         <div class="category-add-row">
           <input type="text" id="new-${stateKey}-input" placeholder="${placeholder}">
           <button id="btn-add-${stateKey}" class="btn btn-secondary btn-small">追加</button>
         </div>
+        <div class="category-manage-list" id="simple-list-${stateKey}"></div>
       </div>
     `;
     renderList();
@@ -714,8 +714,8 @@ function renderRecurringSubview() {
     <h2 class="section-title">定期支払いの管理</h2>
     <p class="section-desc">毎月決まった日に、決まった金額を自動で記録します。カレンダーでその月を開くと、その月分が自動入力されます。</p>
     <div class="settings-group">
+      <button id="btn-add-recurring" class="btn btn-secondary btn-small" style="margin:14px;">＋ 定期支払いを追加</button>
       <div class="category-manage-list" id="recurring-list"></div>
-      <button id="btn-add-recurring" class="btn btn-secondary btn-small" style="margin-top:10px;">＋ 定期支払いを追加</button>
     </div>
   `;
   renderRecurringList();

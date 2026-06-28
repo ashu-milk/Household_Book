@@ -518,7 +518,12 @@ a, button { font-family: inherit; }
   color: var(--ink);
 }
 .category-manage-actions { display: flex; gap: 8px; flex-shrink: 0; margin-left: auto; }
-.category-add-row { display: flex; gap: 8px; padding: 14px 18px; }
+.category-add-row {
+  display: flex;
+  gap: 8px;
+  padding: 14px 18px;
+  border-bottom: 2px dashed var(--rule);
+}
 .category-add-row input {
   flex: 1 1 auto;
   min-width: 0;
